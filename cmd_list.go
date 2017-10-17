@@ -23,6 +23,11 @@ func init() {
 				return err
 			}
 			for _, item := range tasks.Value {
+				if item.Status == "Completed" {
+					fmt.Print("* ")
+				} else {
+					fmt.Print("  ")
+				}
 				fmt.Println(item.Subject)
 			}
 			return nil

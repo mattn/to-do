@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -65,16 +64,17 @@ var (
 )
 
 func (cfg config) doAPI(ctx context.Context, method string, uri string, params interface{}, res interface{}) error {
-	var buf *bytes.Buffer
+	var stream io.Reader
 	if params != nil {
-		buf = new(bytes.Buffer)
+		buf := new(bytes.Buffer)
 		err := json.NewEncoder(buf).Encode(params)
 		if err != nil {
 			return err
 		}
+		stream = buf
 	}
 
-	req, err := http.NewRequest(method, uri, buf)
+	req, err := http.NewRequest(method, uri, stream)
 	if err != nil {
 		return err
 	}
@@ -84,20 +84,14 @@ func (cfg config) doAPI(ctx context.Context, method string, uri string, params i
 	if err != nil {
 		return err
 	}
-	if resp.StatusCode >= 400 {
-		fmt.Println(resp.Status)
-	}
 	defer resp.Body.Close()
-	var r io.Reader
-	r = io.TeeReader(resp.Body, os.Stdout)
+	var r io.Reader = resp.Body
+	//r = io.TeeReader(resp.Body, os.Stdout)
 
 	if res != nil {
 		err = json.NewDecoder(r).Decode(res)
 	} else {
 		_, err = io.Copy(ioutil.Discard, r)
-	}
-	if err != nil {
-		println(err.Error())
 	}
 	return err
 }
@@ -135,25 +129,12 @@ func getConfig() (string, config, error) {
 	return file, cfg, nil
 }
 
-func getAccessToken(config map[string]string) (string, error) {
+func getAccessToken(cfg config) (string, error) {
 	l, err := net.Listen("tcp", "localhost:8989")
 	if err != nil {
 		return "", err
 	}
 	defer l.Close()
-
-	oauthConfig := &oauth2.Config{
-		Scopes: []string{
-			"https://outlook.office.com/Tasks.Readwrite",
-		},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-			TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-		},
-		ClientID:     config["ClientID"],
-		ClientSecret: config["ClientSecret"],
-		RedirectURL:  "http://localhost:8989",
-	}
 
 	stateBytes := make([]byte, 16)
 	_, err = rand.Read(stateBytes)
@@ -162,6 +143,21 @@ func getAccessToken(config map[string]string) (string, error) {
 	}
 
 	state := fmt.Sprintf("%x", stateBytes)
+
+	oauthConfig := &oauth2.Config{
+		Scopes: []string{
+			"offline_access",
+			"https://outlook.office.com/Tasks.Readwrite",
+		},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+			TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+		},
+		ClientID:     cfg["ClientID"],
+		ClientSecret: cfg["ClientSecret"],
+		RedirectURL:  "http://localhost:8989",
+	}
+
 	err = open.Start(oauthConfig.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "code")))
 	if err != nil {
 		return "", err
@@ -178,40 +174,44 @@ func getAccessToken(config map[string]string) (string, error) {
 		quit <- code
 	}))
 
-	code := <-quit
-
-	token, err := oauthConfig.Exchange(context.Background(), code)
+	token, err := oauthConfig.Exchange(context.Background(), <-quit)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to exchange access-token: %v", err)
 	}
 
 	return token.AccessToken, nil
 }
 
-func main() {
+func setup(c *cli.Context) error {
 	file, cfg, err := getConfig()
 	if err != nil {
-		log.Fatal("failed to get configuration:", err)
+		return fmt.Errorf("failed to get configuration: %v", err)
 	}
+
 	if cfg["AccessToken"] == "" {
 		token, err := getAccessToken(cfg)
 		if err != nil {
-			log.Fatal("faild to get access token:", err)
+			return fmt.Errorf("faild to get access token: %v", err)
 		}
 		cfg["AccessToken"] = token
 		b, err := json.MarshalIndent(cfg, "", "  ")
 		if err != nil {
-			log.Fatal("failed to store file:", err)
+			return fmt.Errorf("failed to store file: %v", err)
 		}
 		err = ioutil.WriteFile(file, b, 0700)
 		if err != nil {
-			log.Fatal("failed to store file:", err)
+			return fmt.Errorf("failed to store file: %v", err)
 		}
 	}
 
+	app.Metadata["config"] = cfg
+	return nil
+}
+
+func main() {
 	app.Name = "to-do"
 	app.Usage = "Microsoft To-Do client"
+	app.Before = setup
 	app.Setup()
-	app.Metadata["config"] = cfg
-	app.RunAndExitOnError()
+	app.Run(os.Args)
 }
