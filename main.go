@@ -162,7 +162,6 @@ func getAccessToken(config map[string]string) (string, error) {
 	}
 
 	state := fmt.Sprintf("%x", stateBytes)
-	//err = open.Start(oauthConfig.AuthCodeURL(state /*, oauth2.SetAuthURLParam("response_type", "code")*/))
 	err = open.Start(oauthConfig.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "code")))
 	if err != nil {
 		return "", err
