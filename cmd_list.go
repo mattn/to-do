@@ -12,7 +12,7 @@ func init() {
 	app.Commands = append(app.Commands, cli.Command{
 		Name:    "list",
 		Aliases: []string{"l"},
-		Usage:   "list to-do",
+		Usage:   "Show to-do items",
 		Action: func(c *cli.Context) error {
 			todo := app.Metadata["todo"].(*ToDo)
 			var tasks struct {

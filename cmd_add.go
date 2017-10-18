@@ -11,7 +11,7 @@ func init() {
 	app.Commands = append(app.Commands, cli.Command{
 		Name:    "add",
 		Aliases: []string{"a"},
-		Usage:   "add to-do",
+		Usage:   "Add new to-do item",
 		Action: func(c *cli.Context) error {
 			if !c.Args().Present() {
 				cli.ShowCommandHelp(c, "add")

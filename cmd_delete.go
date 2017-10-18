@@ -12,8 +12,8 @@ import (
 func init() {
 	app.Commands = append(app.Commands, cli.Command{
 		Name:    "delete",
-		Aliases: []string{"a"},
-		Usage:   "delete to-do",
+		Aliases: []string{"d"},
+		Usage:   "Delete specified to-do item",
 		Action: func(c *cli.Context) error {
 			if !c.Args().Present() {
 				cli.ShowCommandHelp(c, "delete")
