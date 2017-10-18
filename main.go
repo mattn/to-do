@@ -171,6 +171,7 @@ func getAccessToken(cfg config) (string, error) {
 		} else {
 			w.Write([]byte(`<script>window.open("about:blank","_self").close()</script>`))
 		}
+		w.(http.Flusher).Flush()
 		quit <- code
 	}))
 
