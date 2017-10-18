@@ -63,7 +63,22 @@ var (
 	app = cli.NewApp()
 )
 
-func (cfg config) doAPI(ctx context.Context, method string, uri string, params interface{}, res interface{}) error {
+func init() {
+	app.Flags = []cli.Flag{
+		cli.BoolFlag{
+			Name:  "json",
+			Usage: "output json",
+		},
+	}
+}
+
+type ToDo struct {
+	token  *oauth2.Token
+	config *oauth2.Config
+	file   string
+}
+
+func (todo *ToDo) doAPI(ctx context.Context, method string, uri string, params interface{}, res interface{}) error {
 	var stream io.Reader
 	if params != nil {
 		buf := new(bytes.Buffer)
@@ -78,9 +93,11 @@ func (cfg config) doAPI(ctx context.Context, method string, uri string, params i
 	if err != nil {
 		return err
 	}
+	req.WithContext(ctx)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", "Bearer "+cfg["AccessToken"])
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Add("Authorization", "Bearer "+todo.token.AccessToken)
+	client := todo.config.Client(ctx, todo.token)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -96,7 +113,7 @@ func (cfg config) doAPI(ctx context.Context, method string, uri string, params i
 	return err
 }
 
-func getConfig() (string, config, error) {
+func (todo *ToDo) Setup() error {
 	dir := os.Getenv("HOME")
 	if dir == "" && runtime.GOOS == "windows" {
 		dir = os.Getenv("APPDATA")
@@ -108,59 +125,40 @@ func getConfig() (string, config, error) {
 		dir = filepath.Join(dir, ".config", "to-do")
 	}
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return "", nil, err
+		return err
 	}
-	file := filepath.Join(dir, "settings.json")
-	cfg := config{}
+	todo.file = filepath.Join(dir, "settings.json")
 
-	b, err := ioutil.ReadFile(file)
-	if err != nil && !os.IsNotExist(err) {
-		return "", nil, err
-	}
+	b, err := ioutil.ReadFile(todo.file)
 	if err != nil {
-		cfg["ClientID"] = "da334f61-816a-4cda-a0bf-d1b6aa9240da"
-		cfg["ClientSecret"] = "jRRTkBgcvDoxZSCSppzp0vn"
-	} else {
-		err = json.Unmarshal(b, &cfg)
-		if err != nil {
-			return "", nil, fmt.Errorf("could not unmarshal %v: %v", file, err)
-		}
+		return err
 	}
-	return file, cfg, nil
+
+	err = json.Unmarshal(b, &todo.token)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal %v: %v", todo.file, err)
+	}
+	return nil
 }
 
-func getAccessToken(cfg config) (string, error) {
+func (todo *ToDo) AccessToken() error {
 	l, err := net.Listen("tcp", "localhost:8989")
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer l.Close()
 
 	stateBytes := make([]byte, 16)
 	_, err = rand.Read(stateBytes)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	state := fmt.Sprintf("%x", stateBytes)
 
-	oauthConfig := &oauth2.Config{
-		Scopes: []string{
-			"offline_access",
-			"https://outlook.office.com/Tasks.Readwrite",
-		},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-			TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-		},
-		ClientID:     cfg["ClientID"],
-		ClientSecret: cfg["ClientSecret"],
-		RedirectURL:  "http://localhost:8989",
-	}
-
-	err = open.Start(oauthConfig.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "code")))
+	err = open.Start(todo.config.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "code")))
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	quit := make(chan string)
@@ -174,44 +172,59 @@ func getAccessToken(cfg config) (string, error) {
 		quit <- code
 	}))
 
-	token, err := oauthConfig.Exchange(context.Background(), <-quit)
+	todo.token, err = todo.config.Exchange(context.Background(), <-quit)
 	if err != nil {
-		return "", fmt.Errorf("failed to exchange access-token: %v", err)
+		return fmt.Errorf("failed to exchange access-token: %v", err)
 	}
 
-	return token.AccessToken, nil
+	b, err := json.MarshalIndent(todo.token, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to store file: %v", err)
+	}
+	err = ioutil.WriteFile(todo.file, b, 0700)
+	if err != nil {
+		return fmt.Errorf("failed to store file: %v", err)
+	}
+	return nil
 }
 
-func setup(c *cli.Context) error {
-	file, cfg, err := getConfig()
+func initialize(c *cli.Context) error {
+	todo := &ToDo{
+		config: &oauth2.Config{
+			Scopes: []string{
+				"offline_access",
+				"https://outlook.office.com/Tasks.Readwrite",
+			},
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+				TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+			},
+			ClientID:     "da334f61-816a-4cda-a0bf-d1b6aa9240da",
+			ClientSecret: "jRRTkBgcvDoxZSCSppzp0vn",
+			RedirectURL:  "http://localhost:8989",
+		},
+	}
+	err := todo.Setup()
 	if err != nil {
 		return fmt.Errorf("failed to get configuration: %v", err)
 	}
 
-	if cfg["AccessToken"] == "" {
-		token, err := getAccessToken(cfg)
+	if todo.token == nil || todo.token.RefreshToken == "" {
+		err = todo.AccessToken()
 		if err != nil {
 			return fmt.Errorf("faild to get access token: %v", err)
 		}
-		cfg["AccessToken"] = token
-		b, err := json.MarshalIndent(cfg, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to store file: %v", err)
-		}
-		err = ioutil.WriteFile(file, b, 0700)
-		if err != nil {
-			return fmt.Errorf("failed to store file: %v", err)
-		}
 	}
 
-	app.Metadata["config"] = cfg
+	app.Metadata["todo"] = todo
 	return nil
 }
 
 func main() {
 	app.Name = "to-do"
 	app.Usage = "Microsoft To-Do client"
-	app.Before = setup
+	app.Version = "0.0.1"
+	app.Before = initialize
 	app.Setup()
 	app.Run(os.Args)
 }

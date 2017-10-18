@@ -19,8 +19,8 @@ func init() {
 			}
 			var task Task
 			task.Subject = c.Args().First()
-			cfg := app.Metadata["config"].(config)
-			return cfg.doAPI(context.Background(), http.MethodPost, "https://outlook.office.com/api/v2.0/me/tasks", &task, nil)
+			todo := app.Metadata["todo"].(*ToDo)
+			return todo.doAPI(context.Background(), http.MethodPost, "https://outlook.office.com/api/v2.0/me/tasks", &task, nil)
 		},
 	})
 }

@@ -17,8 +17,8 @@ func init() {
 			var tasks struct {
 				Value []Task `json:"value"`
 			}
-			cfg := app.Metadata["config"].(config)
-			err := cfg.doAPI(context.Background(), http.MethodGet, "https://outlook.office.com/api/v2.0/me/tasks", nil, &tasks)
+			todo := app.Metadata["todo"].(*ToDo)
+			err := todo.doAPI(context.Background(), http.MethodGet, "https://outlook.office.com/api/v2.0/me/tasks", nil, &tasks)
 			if err != nil {
 				return err
 			}
