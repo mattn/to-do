@@ -4,16 +4,21 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/urfave/cli"
 )
 
 func init() {
 	app.Commands = append(app.Commands, cli.Command{
-		Name:    "list",
-		Aliases: []string{"l"},
-		Usage:   "list to-do",
+		Name:    "delete",
+		Aliases: []string{"a"},
+		Usage:   "delete to-do",
 		Action: func(c *cli.Context) error {
+			if !c.Args().Present() {
+				cli.ShowCommandHelp(c, "delete")
+				return nil
+			}
 			todo := app.Metadata["todo"].(*ToDo)
 			var tasks struct {
 				Value []Task `json:"value"`
@@ -22,14 +27,14 @@ func init() {
 			if err != nil {
 				return err
 			}
-			for i, item := range tasks.Value {
-				mark := " "
-				if item.Status == "Completed" {
-					mark = "*"
-				}
-				fmt.Printf("%s %05d %s\n", mark, i+1, item.Subject)
+			i, err := strconv.Atoi(c.Args().First())
+			if err != nil {
+				return err
 			}
-			return nil
+			if i < 1 || i > len(tasks.Value) {
+				return fmt.Errorf("invalid identifier: %v", i)
+			}
+			return todo.doAPI(context.Background(), http.MethodDelete, tasks.Value[i-1].OdataID, nil, nil)
 		},
 	})
 }

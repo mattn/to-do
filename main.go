@@ -169,6 +169,7 @@ func (todo *ToDo) AccessToken() error {
 		} else {
 			w.Write([]byte(`<script>window.open("about:blank","_self").close()</script>`))
 		}
+		w.(http.Flusher).Flush()
 		quit <- code
 	}))
 
