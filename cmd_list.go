@@ -2,14 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
+	"github.com/fatih/color"
+	runewidth "github.com/mattn/go-runewidth"
 	"github.com/urfave/cli"
 )
 
 func init() {
-	app.Commands = append(app.Commands, cli.Command{
+	command := cli.Command{
 		Name:    "list",
 		Aliases: []string{"l"},
 		Usage:   "Show to-do items",
@@ -22,14 +26,28 @@ func init() {
 			if err != nil {
 				return err
 			}
+			if c.Bool("json") {
+				return json.NewEncoder(os.Stdout).Encode(&tasks.Value)
+			}
 			for i, item := range tasks.Value {
 				mark := " "
 				if item.Status == "Completed" {
 					mark = "*"
 				}
-				fmt.Printf("%s %05d %s\n", mark, i+1, item.Subject)
+				subject := runewidth.Truncate(item.Subject, 70, "...")
+				fmt.Fprint(color.Output, color.YellowString("%s", mark))
+				fmt.Print(" ")
+				fmt.Fprint(color.Output, color.GreenString("%05d", i+1))
+				fmt.Println(" " + subject)
 			}
 			return nil
 		},
-	})
+	}
+	command.Flags = []cli.Flag{
+		cli.BoolFlag{
+			Name:  "json",
+			Usage: "output json",
+		},
+	}
+	app.Commands = append(app.Commands, command)
 }

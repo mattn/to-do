@@ -63,15 +63,6 @@ var (
 	app = cli.NewApp()
 )
 
-func init() {
-	app.Flags = []cli.Flag{
-		cli.BoolFlag{
-			Name:  "json",
-			Usage: "output json",
-		},
-	}
-}
-
 type ToDo struct {
 	token  *oauth2.Token
 	config *oauth2.Config
