@@ -197,7 +197,7 @@ func initialize(c *cli.Context) error {
 		},
 	}
 	err := todo.Setup()
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to get configuration: %v", err)
 	}
 
