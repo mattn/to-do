@@ -11,12 +11,12 @@ import (
 
 func init() {
 	app.Commands = append(app.Commands, cli.Command{
-		Name:    "delete",
-		Aliases: []string{"x"},
-		Usage:   "Delete specified to-do item",
+		Name:    "done",
+		Aliases: []string{"d"},
+		Usage:   "Done the specified to-do item",
 		Action: func(c *cli.Context) error {
 			if !c.Args().Present() {
-				cli.ShowCommandHelp(c, "delete")
+				cli.ShowCommandHelp(c, "done")
 				return nil
 			}
 			todo := app.Metadata["todo"].(*ToDo)
@@ -34,7 +34,7 @@ func init() {
 			if i < 1 || i >= len(tasks.Value) {
 				return fmt.Errorf("invalid identifier: %v", i)
 			}
-			return todo.doAPI(context.Background(), http.MethodDelete, tasks.Value[i-1].OdataID, nil, nil)
+			return todo.doAPI(context.Background(), http.MethodPost, tasks.Value[i-1].OdataID+"/complete", nil, nil)
 		},
 	})
 }

@@ -29,6 +29,11 @@ func (tt TaskTime) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`{"DateTime": %q, "TimeZone": %q}`, t.Format("2006-01-02T15:04:05"), string(zone))), nil
 }
 
+type TaskBody struct {
+	ContentType string `json:"ContentType"`
+	Content     string `json:"Content"`
+}
+
 type Task struct {
 	OdataID              string        `json:"@odata.id,omitempty"`
 	OdataEtag            string        `json:"@odata.etag,omitempty"`
@@ -46,15 +51,12 @@ type Task struct {
 	Sensitivity          string        `json:"Sensitivity,omitempty"`
 	Status               string        `json:"Status,omitempty"`
 	Subject              string        `json:"Subject,omitempty"`
-	Body                 *struct {
-		ContentType string `json:"ContentType"`
-		Content     string `json:"Content"`
-	} `json:"Body,omitempty"`
-	CompletedDateTime *TaskTime `json:"CompletedDateTime,omitempty"`
-	DueDateTime       *TaskTime `json:"DueDateTime,omitempty"`
-	Recurrence        *TaskTime `json:"Recurrence,omitempty"`
-	ReminderDateTime  *TaskTime `json:"ReminderDateTime,omitempty"`
-	StartDateTime     *TaskTime `json:"StartDateTime,omitempty"`
+	Body                 *TaskBody     `json:"Body,omitempty"`
+	CompletedDateTime    *TaskTime     `json:"CompletedDateTime,omitempty"`
+	DueDateTime          *TaskTime     `json:"DueDateTime,omitempty"`
+	Recurrence           *TaskTime     `json:"Recurrence,omitempty"`
+	ReminderDateTime     *TaskTime     `json:"ReminderDateTime,omitempty"`
+	StartDateTime        *TaskTime     `json:"StartDateTime,omitempty"`
 }
 
 type config map[string]string
